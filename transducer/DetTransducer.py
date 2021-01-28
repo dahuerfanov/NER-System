@@ -11,7 +11,7 @@ class DetTransducer:
     def size(self):
         return len(self.d)
 
-    def applyTransducer(self, text):
+    def apply(self, text):
         q, j = 0, 0
         out_text = []
         for i in text:

@@ -38,7 +38,7 @@ class Transducer:
     def size(self):
         return len(self.adj)
 
-    def determinizeTransducer(self) -> DetTransducer:
+    def determinize(self) -> DetTransducer:
         d = []
         w_det = []
         rho = []
@@ -219,3 +219,23 @@ def compose(t1, t2) -> Transducer:  # t1 o t2
 
         i += 1
     return Transducer(adj, F, t1.alphSize)
+
+
+print(localExtension([0, 0], 0, 1, 4))
+
+print(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4))
+
+print(localExtension([0, 0], 0, 1, 2))
+print(localExtension([0, 0], 0, 1, 2).determinize())
+
+print(compose(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4), localExtension([0, 0], 0, 1, 4)))
+print(compose(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4), localExtension([0, 0], 0, 1, 4)).determinize())
+
+print(localExtension([1, 1, 0], 1, 0, 2))
+print(localExtension([1, 1, 0], 1, 0, 2).determinize())
+print(localExtension([0, 0], 0, 1, 2).determinize())
+print(compose(localExtension([1, 1, 0], 1, 0, 2), localExtension([0, 0], 0, 1, 2)))
+print(compose(localExtension([1, 1, 0], 1, 0, 2), localExtension([0, 0], 0, 1, 2)).determinize())
+
+print(localExtension([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10, 9,
+                     10).determinize())
