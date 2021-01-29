@@ -10,7 +10,7 @@ class Transducer:
 
         self.adj = adj
         self.F = F
-        self.alphSize = alphSize
+        self.alphsize = alphSize
 
     def __str__(self):
 
@@ -47,7 +47,7 @@ class Transducer:
         S.add((0, ()))
         C.append(S)
         n = 1
-        w_length = [0] * self.alphSize
+        w_length = [0] * self.alphsize
         q = 0
         while q < n:
             S = C[q]
@@ -55,12 +55,12 @@ class Transducer:
             w_det.append([])
             rho.append(None)
 
-            w = [None] * self.alphSize
-            S_ = [None] * self.alphSize
+            w = [None] * self.alphsize
+            S_ = [None] * self.alphsize
             for (q_, u) in S:
                 if q_ in self.F:
                     if not rho[q] is None:
-                        assert isSameList(u, rho[q])  # condition satisfied by finite deterministic transducers
+                        assert is_same_list(u, rho[q])  # condition satisfied by finite deterministic transducers
                     else:
                         rho[q] = u
 
@@ -70,7 +70,7 @@ class Transducer:
                         w[t.i].append(t.o)
                         w_length[t.i] = len(w[t.i])
                     else:
-                        w_length[t.i] = maxPrefix(w[t.i], u, t.o, w_length[t.i])
+                        w_length[t.i] = max_prefix(w[t.i], u, t.o, w_length[t.i])
 
             for (q_, u) in S:
                 for t in self.adj[q_]:
@@ -78,7 +78,7 @@ class Transducer:
                         S_[t.i] = set()
                     S_[t.i].add((t.q, tuple(inverse(w[t.i], w_length[t.i], u, t.o))))
 
-            for j in range(self.alphSize):
+            for j in range(self.alphsize):
                 e = -1
                 for i in range(n):
                     if C[i] == S_[j]:
@@ -95,7 +95,7 @@ class Transducer:
         return DetTransducer(d, w_det, rho)
 
 
-def isSameList(a, b):
+def is_same_list(a, b):
     if len(a) != len(b):
         return False
     for i in range(len(a)):
@@ -113,7 +113,7 @@ def inverse(w, prefix, u, ucont):
     return u_[prefix:]
 
 
-def maxPrefix(s1, s2, s2next, acc):
+def max_prefix(s1, s2, s2next, acc):
     i = 0
     while i < len(s1) and i <= len(s2) and i < acc:
         if i < len(s2):
@@ -124,7 +124,7 @@ def maxPrefix(s1, s2, s2next, acc):
     return i
 
 
-def isSuffix(P, i, j):  # i <= j
+def is_suffix(P, i, j):  # i <= j
     k1 = j
     for k2 in range(i, -1, -1):
         if P[k1] != P[k2]:
@@ -133,7 +133,7 @@ def isSuffix(P, i, j):  # i <= j
     return True
 
 
-def isPrefix(P, Q):
+def is_prefix(P, Q):
     if len(Q) < len(P):
         return False
     for i in range(len(P)):
@@ -142,7 +142,7 @@ def isPrefix(P, Q):
     return True
 
 
-def addJokerTransition(transitions, q, alphSize):
+def add_joker_transition(transitions, q, alphSize):
     used = np.zeros(shape=alphSize, dtype=int)
     for t in transitions:
         used[t.i] = 1
@@ -151,7 +151,7 @@ def addJokerTransition(transitions, q, alphSize):
             transitions.append(Transition(i, i, q))
 
 
-def localExtension(P, k, c, alphSize) -> Transducer:
+def local_extension(P, k, c, alphSize) -> Transducer:
     adj = []
     F = set()
     m = len(P)
@@ -160,7 +160,7 @@ def localExtension(P, k, c, alphSize) -> Transducer:
         adj.append([])
         for a in range(alphSize):
             j = q + 1
-            while P[j - 1] != a or not isSuffix(P, j - 2, q - 1):
+            while P[j - 1] != a or not is_suffix(P, j - 2, q - 1):
                 j -= 1
                 if j == 0: break
             adj[q].append(Transition(a, a, j))
@@ -177,19 +177,19 @@ def localExtension(P, k, c, alphSize) -> Transducer:
         q = m + i - k
         adj.append([])
         adj[q].append(Transition(P[i], P[i], (q + 1) % (2 * m - k)))
-        addJokerTransition(adj[q], sink, alphSize)
+        add_joker_transition(adj[q], sink, alphSize)
 
     adj[k].append(Transition(P[k], c, q_t))
     for i in range(k + 1, m, 1):
         S = P[k: i] + P[k:]
-        if isSuffix(P, k - 1, i - 1) and not isPrefix(S[0: m - k], S[i - k:]):
+        if is_suffix(P, k - 1, i - 1) and not is_prefix(S[0: m - k], S[i - k:]):
             adj[i].append(Transition(P[k], c, q_t))
 
     return Transducer(adj, F, alphSize)
 
 
 def compose(t1, t2) -> Transducer:  # t1 o t2
-    assert t1.alphSize == t2.alphSize
+    assert t1.alphsize == t2.alphsize
     n = 0
     m = np.zeros(shape=(t1.size(), t2.size()), dtype=int)
     Q_x = np.zeros(shape=t1.size() * t2.size(), dtype=int)
@@ -218,24 +218,4 @@ def compose(t1, t2) -> Transducer:  # t1 o t2
                     adj[idx].append(Transition(tr2.i, tr1.o, m[v_x][v_y] - 1))
 
         i += 1
-    return Transducer(adj, F, t1.alphSize)
-
-
-print(localExtension([0, 0], 0, 1, 4))
-
-print(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4))
-
-print(localExtension([0, 0], 0, 1, 2))
-print(localExtension([0, 0], 0, 1, 2).determinize())
-
-print(compose(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4), localExtension([0, 0], 0, 1, 4)))
-print(compose(localExtension([0, 1, 0, 1, 0, 2], 2, 2, 4), localExtension([0, 0], 0, 1, 4)).determinize())
-
-print(localExtension([1, 1, 0], 1, 0, 2))
-print(localExtension([1, 1, 0], 1, 0, 2).determinize())
-print(localExtension([0, 0], 0, 1, 2).determinize())
-print(compose(localExtension([1, 1, 0], 1, 0, 2), localExtension([0, 0], 0, 1, 2)))
-print(compose(localExtension([1, 1, 0], 1, 0, 2), localExtension([0, 0], 0, 1, 2)).determinize())
-
-print(localExtension([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10, 9,
-                     10).determinize())
+    return Transducer(adj, F, t1.alphsize)
