@@ -1,6 +1,5 @@
 import numpy as np
 
-import transducer.transducer
 from lexicalTagger.trie import Trie
 from transducer.transducer_util import local_extension, compose
 
@@ -28,7 +27,6 @@ class BrillNER:
     def fit(self, words, tags, words2, tags2, num_rules, min_prefix, out_tag="O"):
         self.out_tag = out_tag
         self.min_prefix = min_prefix
-        err_mat = np.zeros(shape=(len(self.tag_set), len(self.tag_set)), dtype=int)
         self.trie = Trie(len(self.tag_set))
         self.trie_prefix = Trie(len(self.tag_set))
         self.trie_canon_form = Trie(len(self.tag_set))
@@ -43,51 +41,54 @@ class BrillNER:
         for i in range(len(words2)):
             true_tags.append(self.tag_idx[tags2[i]])
             lex_tags.append(self.get_lex_tag(words2[i]))
-            if true_tags[-1] != lex_tags[-1]:
-                err_mat[true_tags[-1]][lex_tags[-1]] += 1
 
         rules = []
-        for tag_from in range(len(self.tag_set)):
-            for tag_to in range(len(self.tag_set)):
-                if tag_from == tag_to:
-                    continue
+        for C in range(len(self.tag_set)):
+            rules.append(Rule([C, 0], 1, 0))
+            rules.append(Rule([0, C], 0, 0))
 
-                for C in range(len(self.tag_set)):
-                    rules.append(Rule([C, tag_from], 1, tag_to))
-                    rules.append(Rule([tag_from, C], 0, tag_to))
+            for D in range(len(self.tag_set)):
+                rules.append(Rule([C, D, 0], 2, 0))
+                rules.append(Rule([C, 0, D], 1, 0))
+                rules.append(Rule([0, C, D], 0, 0))
 
-                    for D in range(len(self.tag_set)):
-                        rules.append(Rule([C, D, tag_from], 2, tag_to))
-                        rules.append(Rule([C, tag_from, D], 1, tag_to))
-                        rules.append(Rule([tag_from, C, D], 0, tag_to))
+                for E in range(len(self.tag_set)):
+                    rules.append(Rule([C, D, E, 0], 3, 0))
+                    rules.append(Rule([C, D, 0, E], 2, 0))
+                    rules.append(Rule([C, 0, D, E], 1, 0))
+                    rules.append(Rule([0, C, D, E], 0, 0))
 
-                        for E in range(len(self.tag_set)):
-                            rules.append(Rule([C, D, E, tag_from], 3, tag_to))
-                            rules.append(Rule([C, D, tag_from, E], 2, tag_to))
-                            rules.append(Rule([C, tag_from, D, E], 1, tag_to))
-                            rules.append(Rule([tag_from, C, D, E], 0, tag_to))
-
-                            for F in range(len(self.tag_set)):
-                                rules.append(Rule([C, D, E, F, tag_from], 4, tag_to))
-                                rules.append(Rule([C, D, E, tag_from, F], 3, tag_to))
-                                rules.append(Rule([C, D, tag_from, E, F], 2, tag_to))
-                                rules.append(Rule([C, tag_from, D, E, F], 1, tag_to))
-                                rules.append(Rule([tag_from, C, D, E, F], 0, tag_to))
-
-        print("# trans: " + str(len(rules)))
+                    for F in range(len(self.tag_set)):
+                        rules.append(Rule([C, D, E, F, 0], 4, 0))
+                        rules.append(Rule([C, D, E, 0, F], 3, 0))
+                        rules.append(Rule([C, D, 0, E, F], 2, 0))
+                        rules.append(Rule([C, 0, D, E, F], 1, 0))
+                        rules.append(Rule([0, C, D, E, F], 0, 0))
 
         final_trans = []
-        used_rule = np.zeros(shape=len(rules), dtype=bool)
         for it in range(num_rules):
+            err_mat = np.zeros(shape=(len(self.tag_set), len(self.tag_set)), dtype=int)
+            for i in range(len(true_tags)):
+                if true_tags[i] != lex_tags[i]:
+                    err_mat[lex_tags[i]][true_tags[i]] += 1
+            tag_from, tag_to = -1, -1
+            cnt_err = -1
+            for i in range(len(self.tag_set)):
+                for j in range(len(self.tag_set)):
+                    if cnt_err < err_mat[i][j]:
+                        tag_from, tag_to = i, j
+                        cnt_err = err_mat[i][j]
+
             idx_best = -1
             best_score = 0
             tags_best_trans = []
-            print("finding best rule #" + str(it))
+            print("finding best rule #" + str(it) + " out of " + str(len(rules)) + " for " + str(cnt_err) + " mistakes")
+            print("from " + self.tag_set[tag_from] + " to " + self.tag_set[tag_to])
             for i, rule in enumerate(rules):
-                if used_rule[i]:
-                    continue
-                tags_cur_trans = rule.apply(lex_tags)
-                score_cur_trans = compute_score(true_tags, tags_cur_trans)
+                rule.P[rule.idx] = tag_from
+                rule.new_symbol = tag_to
+
+                score_cur_trans, tags_cur_trans = rule.apply(lex_tags, true_tags)
                 if score_cur_trans > best_score:
                     best_score = score_cur_trans
                     tags_best_trans = tags_cur_trans
@@ -95,7 +96,9 @@ class BrillNER:
 
             if idx_best < 0:
                 break
-            used_rule[idx_best] = True
+            print("best: " + str(rules[idx_best].P) + ", " + str(rules[idx_best].idx) + " " + self.tag_set[
+                rules[idx_best].new_symbol])
+            print("score: " + str(best_score) + "/" + str(len(lex_tags)))
             final_trans.append(local_extension(rules[idx_best].P, rules[idx_best].idx,
                                                rules[idx_best].new_symbol, len(self.tag_set)))
             lex_tags = tags_best_trans
@@ -189,27 +192,27 @@ class Rule:
                 k = k + 1
             self.pi.append(k)
 
-    def apply(self, tags):
-        tags2 = [tag for tag in tags]
+    def apply(self, tags, true_tags):
+        score = 0
+        tags2 = []
         q = -1
         for i in range(len(tags)):
             while q >= 0 and self.P[q + 1] != tags[i]:
                 q = self.pi[q]
             if self.P[q + 1] == tags[i]:
                 q = q + 1
+            tags2.append(tags[i])
+            if tags[i] == true_tags[i]:
+                score += 1
             if q == len(self.P) - 1:
-                tags2[i - len(self.P) + 1 - self.idx] = self.new_symbol
+                tags2[i - len(self.P) + 1 + self.idx] = self.new_symbol
                 q = -1  # if pattern P is found we forget the acc idx q since we consider just non-overlapping matches
+                if tags[i - len(self.P) + 1 + self.idx] == true_tags[i - len(self.P) + 1 + self.idx]:
+                    score -= 1
+                if self.new_symbol == true_tags[i - len(self.P) + 1 + self.idx]:
+                    score += 1
 
-        return tags2
-
-
-def compute_score(a, b):
-    cnt = 0
-    for i in range(len(a)):
-        if a[i] == b[i]:
-            cnt += 1
-    return cnt
+        return score, tags2
 
 
 def canonical_form(s):
