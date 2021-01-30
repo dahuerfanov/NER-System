@@ -1,8 +1,8 @@
 import numpy as np
 
-import transducer.Transducer
-from lexicalTagger.Trie import Trie
-from transducer.Transducer import local_extension
+import transducer.transducer
+from lexicalTagger.trie import Trie
+from transducer.transducer_util import local_extension, compose
 
 
 class BrillNER:
@@ -49,7 +49,7 @@ class BrillNER:
         rules = []
         for tag_from in range(len(self.tag_set)):
             for tag_to in range(len(self.tag_set)):
-                if err_mat[tag_to][tag_from] == 0:
+                if tag_from == tag_to:
                     continue
 
                 for C in range(len(self.tag_set)):
@@ -102,7 +102,7 @@ class BrillNER:
 
         t = final_trans[0]
         for i in range(1, len(final_trans), 1):
-            t = transducer.Transducer.compose(final_trans[i], t)
+            t = compose(final_trans[i], t)
             print("det -> " + str(i))
 
         self.trans = t.determinize()
