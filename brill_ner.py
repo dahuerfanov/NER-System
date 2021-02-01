@@ -24,7 +24,7 @@ class BrillNER:
                     self.types_[self.tag_set[i][2:]] = cnt_types
                     cnt_types += 1
 
-    def fit(self, words, tags, words2, tags2, num_rules, min_prefix, out_tag="O"):
+    def fit(self, words, tags, words2, tags2, num_rules, min_prefix, max_rule_len, alpha=1, out_tag="O"):
         self.out_tag = out_tag
         self.min_prefix = min_prefix
         self.trie = Trie(len(self.tag_set))
@@ -43,31 +43,13 @@ class BrillNER:
             lex_tags.append(self.get_lex_tag(words2[i]))
 
         rules = []
-        for C in range(len(self.tag_set)):
-            rules.append(Rule([C, 0], 1, 0))
-            rules.append(Rule([0, C], 0, 0))
-
-            for D in range(len(self.tag_set)):
-                rules.append(Rule([C, D, 0], 2, 0))
-                rules.append(Rule([C, 0, D], 1, 0))
-                rules.append(Rule([0, C, D], 0, 0))
-
-                for E in range(len(self.tag_set)):
-                    rules.append(Rule([C, D, E, 0], 3, 0))
-                    rules.append(Rule([C, D, 0, E], 2, 0))
-                    rules.append(Rule([C, 0, D, E], 1, 0))
-                    rules.append(Rule([0, C, D, E], 0, 0))
-
-                    # for F in range(len(self.tag_set)):
-                    #    rules.append(Rule([C, D, E, F, 0], 4, 0))
-                    #    rules.append(Rule([C, D, E, 0, F], 3, 0))
-                    #    rules.append(Rule([C, D, 0, E, F], 2, 0))
-                    #    rules.append(Rule([C, 0, D, E, F], 1, 0))
-                    #    rules.append(Rule([0, C, D, E, F], 0, 0))
+        poss_arrs = []
+        self.gen_poss_arr(poss_arrs, [-1] * max_rule_len)
+        for arr in poss_arrs:
+            rules.append(Rule(arr, arr.index(-1), -1))
 
         print(str(len(rules)) + " rules generated")
         final_trans = []
-        alpha = 0.1
         for it in range(num_rules):
             cnt_err = 0
             err_mat = np.zeros(shape=(len(self.tag_set), len(self.tag_set)), dtype=int)
@@ -76,15 +58,13 @@ class BrillNER:
                     err_mat[lex_tags[i]][true_tags[i]] += 1
                     cnt_err += 1
 
-            print(err_mat)
-
             best_rule = None
             best_score = 0
             tags_best_trans = []
             print("finding best rule #" + str(it) + " for " + str(cnt_err) + " mistakes")
             for tag_from in range(len(self.tag_set)):
                 for tag_to in range(len(self.tag_set)):
-                    if err_mat[tag_from][tag_to] < alpha * cnt_err / ((len(self.tag_set) * (len(self.tag_set) - 1))):
+                    if err_mat[tag_from][tag_to] * (len(self.tag_set) * (len(self.tag_set) - 1)) < alpha * cnt_err:
                         continue
 
                     for i, rule in enumerate(rules):
@@ -108,9 +88,20 @@ class BrillNER:
         t = final_trans[0]
         for i in range(1, len(final_trans), 1):
             t = compose(final_trans[i], t)
-            print("det -> " + str(i))
 
         self.trans = t.determinize()
+
+    def gen_poss_arr(self, arrs, acc, idx=0, fix_idx=False):
+        if fix_idx and idx > 1:
+            arrs.append(acc[:idx])
+        if idx == len(acc):
+            return
+        if not fix_idx:
+            acc[idx] = -1
+            self.gen_poss_arr(arrs, acc, idx + 1, True)
+        for tag in range(len(self.tag_set)):
+            acc[idx] = tag
+            self.gen_poss_arr(arrs, acc, idx + 1, fix_idx)
 
     def get_lex_tag(self, word):
         tag = self.trie.get_tag(word)
