@@ -3,6 +3,7 @@ import numpy as np
 from transducer.transducer import Transducer
 
 
+# Loal extension algorithm for a contextual rule (https://arxiv.org/abs/2006.11548)
 def local_extension(P, k, c, alphSize) -> Transducer:
     adj = []
     F = set()
@@ -40,7 +41,8 @@ def local_extension(P, k, c, alphSize) -> Transducer:
     return Transducer(adj, F, alphSize)
 
 
-def compose(t1, t2) -> Transducer:  # t1 o t2
+# t1 o t2
+def compose(t1, t2) -> Transducer:
     assert t1.alphsize == t2.alphsize
     n = 0
     m = np.zeros(shape=(t1.size(), t2.size()), dtype=int)

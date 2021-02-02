@@ -37,6 +37,7 @@ class Transducer:
     def size(self):
         return len(self.adj)
 
+    # Determinization algorithm for transducers (https://www.aclweb.org/anthology/J95-2004.pdf)
     def determinize(self) -> DetTransducer:
         d = []
         w_det = []
@@ -59,7 +60,8 @@ class Transducer:
             for (q_, u) in S:
                 if q_ in self.F:
                     if not rho[q] is None:
-                        assert is_same_list(u, rho[q])  # condition satisfied by finite deterministic transducers
+                        # condition satisfied by finite deterministic transducers
+                        assert is_same_list(u, rho[q])
                     else:
                         rho[q] = u
 
@@ -103,6 +105,7 @@ def is_same_list(a, b):
     return True
 
 
+# Inverse of a string according to the paper
 def inverse(w, prefix, u, ucont):
     u_ = list(u)
     u_.append(ucont)

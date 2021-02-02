@@ -24,31 +24,65 @@ class BrillNER:
                     self.types_[self.tag_set[i][2:]] = cnt_types
                     cnt_types += 1
 
-    def fit(self, words, tags, words2, tags2, num_rules, min_prefix, max_rule_len, alpha=1, out_tag="O"):
+    def fit(self, text_lex, tags_lex, text_contex, tags_contex, num_rules, min_prefix, max_rule_len, alpha=0.001,
+            out_tag="O"):
+
+        '''
+
+        Parameters:
+        ----------
+
+        :param text_lex: list                  list of tokens to train the lexical tagger
+
+        :param tags_lex: list                  list of the corresponding tags in text_lex. They must lie in self.tag_set
+
+        :param text_contex: list               list of tokens to train the contextual tagger
+
+        :param tags_contex: list               list of the corresponding tags in text_contex. They must lie in self.tag_set
+
+        :param num_rules: int                  number of contextual rules to learn
+
+        :param min_prefix: int                 minimum length of prefixes to be saved in the prefix trie, used for the
+                                               assignation of lexical tags
+
+        :param max_rule_len: int               maximum length of each contextual rule to learn, including the changing
+                                               tag
+
+        :param alpha: float                    percentage of minimum amount of mistakes of assigning a particular wrong
+                                               tag to another specific one with respect to the total, when considering a
+                                               candidate contextual rule
+
+        :param out_tag: string                 the default tag indicating that a token is part of no nominal entity
+        '''
+
         self.out_tag = out_tag
         self.min_prefix = min_prefix
         self.trie = Trie(len(self.tag_set))
         self.trie_prefix = Trie(len(self.tag_set))
         self.trie_canon_form = Trie(len(self.tag_set))
 
-        for i in range(len(words)):
-            self.trie.add_word(words[i].lower(), self.tag_idx[tags[i]])
-            self.trie_prefix.add_word(words[i], self.tag_idx[tags[i]], min_prefix)
-            self.trie_canon_form.add_word(canonical_form(words[i]), self.tag_idx[tags[i]])
+        # Build the trie structures from the text and tags for the lexical tagger
+        for i in range(len(text_lex)):
+            self.trie.add_word(text_lex[i].lower(), self.tag_idx[tags_lex[i]])
+            self.trie_prefix.add_word(text_lex[i], self.tag_idx[tags_lex[i]], min_prefix)
+            self.trie_canon_form.add_word(canonical_form(text_lex[i]), self.tag_idx[tags_lex[i]])
 
+        # Initialize the tags for contextual tagger according to the lexical tagger
         lex_tags = []
         true_tags = []
-        for i in range(len(words2)):
-            true_tags.append(self.tag_idx[tags2[i]])
-            lex_tags.append(self.get_lex_tag(words2[i]))
+        for i in range(len(text_contex)):
+            true_tags.append(self.tag_idx[tags_contex[i]])
+            lex_tags.append(self.get_lex_tag(text_contex[i]))
 
+        # Generate templates of all possible contextual rules of max. length max_rule_len
         rules = []
         poss_arrs = []
         self.gen_poss_arr(poss_arrs, [-1] * max_rule_len)
         for arr in poss_arrs:
             rules.append(Rule(arr, arr.index(-1), -1))
-
         print(str(len(rules)) + " rules generated")
+
+        # Find the best num_rules rules or halt before finding them according to the alpha param.
         final_trans = []
         for it in range(num_rules):
             cnt_err = 0
@@ -64,7 +98,7 @@ class BrillNER:
             print("finding best rule #" + str(it) + " for " + str(cnt_err) + " mistakes")
             for tag_from in range(len(self.tag_set)):
                 for tag_to in range(len(self.tag_set)):
-                    if err_mat[tag_from][tag_to] * (len(self.tag_set) * (len(self.tag_set) - 1)) < alpha * cnt_err:
+                    if err_mat[tag_from][tag_to] < alpha * cnt_err:
                         continue
 
                     for i, rule in enumerate(rules):
@@ -82,15 +116,20 @@ class BrillNER:
             print("best: " + str([self.tag_set[tag] for tag in best_rule.P]) + ", " + str(best_rule.idx) +
                   " to " + self.tag_set[best_rule.new_symbol])
             print("score: " + str(best_score))
+
+            # Create the transducer of the best found rule
             final_trans.append(local_extension(best_rule.P, best_rule.idx, best_rule.new_symbol, len(self.tag_set)))
             lex_tags = tags_best_trans
 
+        # Apply the composition operator to the list of transducers in the same order
         t = final_trans[0]
         for i in range(1, len(final_trans), 1):
             t = compose(final_trans[i], t)
 
+        # Finally, determinize the learned transducer
         self.trans = t.determinize()
 
+    # Generation of all possible lists for contextual rules
     def gen_poss_arr(self, arrs, acc, idx=0, fix_idx=False):
         if fix_idx and idx > 1:
             arrs.append(acc[:idx])
@@ -175,7 +214,7 @@ class Rule:
         self.new_symbol = new_symbol
 
     def apply(self, tags, true_tags):
-        # KMP algorithm for pattern P. We compute the prefix function in pi:
+        # KMP algorithm for pattern P. We compute the prefix function in pi
         pi = []
         pi.append(-1)
         k = -1
@@ -197,7 +236,8 @@ class Rule:
             tags2.append(tags[i])
             if q == len(self.P) - 1:
                 tags2[i - len(self.P) + 1 + self.idx] = self.new_symbol
-                q = -1  # if pattern P is found we forget the acc idx q since we consider just non-overlapping matches
+                # If pattern P is found we forget the acc idx q since we consider just non-overlapping matches
+                q = -1
                 if tags[i - len(self.P) + 1 + self.idx] == true_tags[i - len(self.P) + 1 + self.idx]:
                     score -= 1
                 if self.new_symbol == true_tags[i - len(self.P) + 1 + self.idx]:
@@ -206,6 +246,7 @@ class Rule:
         return score, tags2
 
 
+# For lexical tagger
 def canonical_form(s):
     c_form = ""
     for c in s:
