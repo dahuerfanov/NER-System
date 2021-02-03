@@ -86,10 +86,12 @@ class BrillNER:
             print("score: " + str(best_score))
             if best_score <= 0:
                 break
-            # Create the transducer of the best found rule
-            final_trans.append(local_extension(best_rule.P, best_rule.idx, best_rule.new_symbol, len(self.tag_set)))
             best_score, lex_tags = best_rule.apply(lex_tags, true_tags)
             print("best score KMP: " + str(best_score))
+            if best_score < 0:
+                break
+            # Create the transducer of the best found rule
+            final_trans.append(local_extension(best_rule.P, best_rule.idx, best_rule.new_symbol, len(self.tag_set)))
 
         # Apply the composition operator to the list of transducers in the same order
         t = final_trans[0]
