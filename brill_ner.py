@@ -1,5 +1,4 @@
-import numpy as np
-
+from lexicalTagger.aho_corasick import AhoCorasickAutomaton
 from lexicalTagger.trie import Trie
 from transducer.transducer_util import local_extension, compose
 
@@ -24,8 +23,7 @@ class BrillNER:
                     self.types_[self.tag_set[i][2:]] = cnt_types
                     cnt_types += 1
 
-    def fit(self, text_lex, tags_lex, text_contex, tags_contex, num_rules, min_prefix, max_rule_len, alpha=0.001,
-            out_tag="O"):
+    def fit(self, text_lex, tags_lex, text_contex, tags_contex, num_rules, min_prefix, max_rule_len, out_tag="O"):
 
         '''
 
@@ -75,51 +73,23 @@ class BrillNER:
             lex_tags.append(self.get_lex_tag(text_contex[i]))
 
         # Generate templates of all possible contextual rules of max. length max_rule_len
-        rules = []
-        poss_arrs = []
-        self.gen_poss_arr(poss_arrs, [-1] * max_rule_len)
-        for arr in poss_arrs:
-            rules.append(Rule(arr, arr.index(-1), -1))
-        print(str(len(rules)) + " rules generated")
+        aho_coras_autom = AhoCorasickAutomaton(len(self.tag_set), max_rule_len)
+        print("size aho-automaton: " + str(aho_coras_autom.n))
 
         # Find the best num_rules rules or halt before finding them according to the alpha param.
         final_trans = []
         for it in range(num_rules):
-            cnt_err = 0
-            err_mat = np.zeros(shape=(len(self.tag_set), len(self.tag_set)), dtype=int)
-            for i in range(len(true_tags)):
-                if true_tags[i] != lex_tags[i]:
-                    err_mat[lex_tags[i]][true_tags[i]] += 1
-                    cnt_err += 1
-
-            best_rule = None
-            best_score = 0
-            tags_best_trans = []
-            print("finding best rule #" + str(it) + " for " + str(cnt_err) + " mistakes")
-            for tag_from in range(len(self.tag_set)):
-                for tag_to in range(len(self.tag_set)):
-                    if err_mat[tag_from][tag_to] < alpha * cnt_err:
-                        continue
-
-                    for i, rule in enumerate(rules):
-                        rule.P[rule.idx] = tag_from
-                        rule.new_symbol = tag_to
-
-                        score_cur_trans, tags_cur_trans = rule.apply(lex_tags, true_tags)
-                        if score_cur_trans > best_score:
-                            best_score = score_cur_trans
-                            tags_best_trans = tags_cur_trans
-                            best_rule = Rule([i for i in rule.P], rule.idx, rule.new_symbol)
-
-            if best_score <= 0:
-                break
+            print("finding best rule #" + str(it))
+            best_score, best_rule = aho_coras_autom.match(lex_tags, true_tags)
             print("best: " + str([self.tag_set[tag] for tag in best_rule.P]) + ", " + str(best_rule.idx) +
                   " to " + self.tag_set[best_rule.new_symbol])
             print("score: " + str(best_score))
-
+            if best_score <= 0:
+                break
             # Create the transducer of the best found rule
             final_trans.append(local_extension(best_rule.P, best_rule.idx, best_rule.new_symbol, len(self.tag_set)))
-            lex_tags = tags_best_trans
+            best_score, lex_tags = best_rule.apply(lex_tags, true_tags)
+            print("best score KMP: " + str(best_score))
 
         # Apply the composition operator to the list of transducers in the same order
         t = final_trans[0]
@@ -128,19 +98,6 @@ class BrillNER:
 
         # Finally, determinize the learned transducer
         self.trans = t.determinize()
-
-    # Generation of all possible lists for contextual rules
-    def gen_poss_arr(self, arrs, acc, idx=0, fix_idx=False):
-        if fix_idx and idx > 1:
-            arrs.append(acc[:idx])
-        if idx == len(acc):
-            return
-        if not fix_idx:
-            acc[idx] = -1
-            self.gen_poss_arr(arrs, acc, idx + 1, True)
-        for tag in range(len(self.tag_set)):
-            acc[idx] = tag
-            self.gen_poss_arr(arrs, acc, idx + 1, fix_idx)
 
     def get_lex_tag(self, word):
         tag = self.trie.get_tag(word)
@@ -204,46 +161,6 @@ class BrillNER:
                 type_ = -1
 
         return entities
-
-
-class Rule:
-
-    def __init__(self, P, idx, new_symbol):
-        self.P = P
-        self.idx = idx
-        self.new_symbol = new_symbol
-
-    def apply(self, tags, true_tags):
-        # KMP algorithm for pattern P. We compute the prefix function in pi
-        pi = []
-        pi.append(-1)
-        k = -1
-        for q in range(1, len(self.P)):
-            while k >= 0 and self.P[k + 1] != self.P[q]:
-                k = pi[k]
-            if self.P[k + 1] == self.P[q]:
-                k = k + 1
-            pi.append(k)
-
-        score = 0
-        tags2 = []
-        q = -1
-        for i in range(len(tags)):
-            while q >= 0 and self.P[q + 1] != tags[i]:
-                q = pi[q]
-            if self.P[q + 1] == tags[i]:
-                q = q + 1
-            tags2.append(tags[i])
-            if q == len(self.P) - 1:
-                tags2[i - len(self.P) + 1 + self.idx] = self.new_symbol
-                # If pattern P is found we forget the acc idx q since we consider just non-overlapping matches
-                q = -1
-                if tags[i - len(self.P) + 1 + self.idx] == true_tags[i - len(self.P) + 1 + self.idx]:
-                    score -= 1
-                if self.new_symbol == true_tags[i - len(self.P) + 1 + self.idx]:
-                    score += 1
-
-        return score, tags2
 
 
 # For lexical tagger
