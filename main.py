@@ -39,8 +39,8 @@ df = df.fillna(method="ffill")
 
 text = df['Word'].values
 tags = df['Tag'].values
-p_train1 = 0.78
-p_train2 = 0.12
+p_train1 = 0.7
+p_train2 = 0.2
 
 text_train1 = text[0:int(len(text) * p_train1)]
 tags_train1 = tags[0:int(len(tags) * p_train1)]
