@@ -1,6 +1,6 @@
 import numpy as np
 
-from transducer.det_transducer import DetTransducer
+from contextual_tagger.det_transducer import DetTransducer
 
 
 class Transducer:

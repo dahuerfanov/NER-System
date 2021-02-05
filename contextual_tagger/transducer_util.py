@@ -1,6 +1,6 @@
 import numpy as np
 
-from transducer.transducer import Transducer
+from contextual_tagger.transducer import Transducer
 
 
 # Loal extension algorithm for a contextual rule (https://arxiv.org/abs/2006.11548)
