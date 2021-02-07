@@ -39,8 +39,8 @@ df = df.fillna(method="ffill")
 
 text = df['Word'].values
 tags = df['Tag'].values
-p_train1 = 0.7
-p_train2 = 0.2
+p_train1 = 0.8
+p_train2 = 0.1
 
 text_train1 = text[0:int(len(text) * p_train1)]
 tags_train1 = tags[0:int(len(tags) * p_train1)]
@@ -52,10 +52,10 @@ text_test = text[int(len(text) * (p_train1 + p_train2)):]
 tags_test = tags[int(len(tags) * (p_train1 + p_train2)):]
 
 ner = BrillNER(["B-geo", "B-org", "B-per", "B-gpe", "B-tim", "B-art", "B-eve", "B-nat", "I-geo", "I-org", "I-per",
-                "I-gpe", "I-tim", "I-art", "I-eve", "I-nat", "O"])
+                "I-gpe", "I-tim", "I-art", "I-eve", "I-nat", "O"], "O")
 
 ner.fit(text_lex=text_train1, tags_lex=tags_train1, text_contex=text_train2, tags_contex=tags_train2,
-        num_rules=30, min_prefix=3, max_rule_len=5, out_tag="O")
+        num_rules=100, min_prefix=3, max_rule_len=4)
 
 getter = SentenceGetter(df[int(len(tags) * (p_train1 + p_train2)):])
 sentences = getter.sentences

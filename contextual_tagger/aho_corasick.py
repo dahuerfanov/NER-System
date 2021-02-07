@@ -3,8 +3,8 @@ import numpy as np
 
 class AhoCorasickAutomaton:
 
-    def __init__(self, alphSize, max_length_rules):
-        self.alphSize = alphSize
+    def __init__(self, in_alph_size, max_length_rules):
+        self.in_alph_size = in_alph_size
         self.max_length_rules = max_length_rules
         self.n = 0
         self.next = []
@@ -19,7 +19,7 @@ class AhoCorasickAutomaton:
         v = 0
         acc_word = [[]]
         while v < len(acc_word):
-            for symbol in range(alphSize):
+            for symbol in range(in_alph_size):
                 self.next[v][symbol] = self.n
                 new_word = acc_word[v] + [symbol]
                 self.add_node(v)
@@ -31,7 +31,7 @@ class AhoCorasickAutomaton:
             v += 1
 
     def add_node(self, parent):
-        self.next.append([-1] * self.alphSize)
+        self.next.append([-1] * self.in_alph_size)
         self.leaf.append(False)
         self.parent.append(parent)
         self.pi.append(-1)
@@ -62,8 +62,8 @@ class AhoCorasickAutomaton:
 
         return self.pi_dict[v]
 
-    def match(self, text, true_text):
-        score = np.zeros(shape=(self.n, self.max_length_rules, self.alphSize), dtype=int)
+    def match(self, text, true_text, out_alph_size, transformation_fun):
+        score = np.zeros(shape=(self.n, self.max_length_rules, out_alph_size), dtype=int)
         v = 0
         best_score = -int(1e9)
         best_rule_P = None
@@ -81,12 +81,13 @@ class AhoCorasickAutomaton:
                     # changing symbol index for resp. rule
                     for idx in range(len(self.dict[u])):
                         idx_text = i - len(self.dict[u]) + 1 + idx
-                        for symbol in range(self.alphSize):
-                            if self.dict[u][idx] == symbol:
+                        for symbol in range(out_alph_size):
+                            trans_symbol = transformation_fun(self.dict[u][idx], symbol)
+                            if trans_symbol == self.dict[u][idx]:
                                 continue
                             if text[idx_text] == true_text[idx_text]:
                                 score[u][idx][symbol] -= 1
-                            if true_text[idx_text] == symbol:
+                            if true_text[idx_text] == trans_symbol:
                                 score[u][idx][symbol] += 1
                             if best_score < score[u][idx][symbol]:
                                 best_score = score[u][idx][symbol]
@@ -106,7 +107,7 @@ class Rule:
         self.idx = idx
         self.new_symbol = new_symbol
 
-    def apply(self, tags, true_tags):
+    def apply(self, tags, true_tags, transformation_fun):
         # KMP algorithm for pattern P. We compute the prefix function in pi
         pi = []
         pi.append(-1)
@@ -128,12 +129,13 @@ class Rule:
                 q = q + 1
             tags2.append(tags[i])
             if q == len(self.P) - 1:
-                tags2[i - len(self.P) + 1 + self.idx] = self.new_symbol
+                trans_symbol = transformation_fun(tags[i - len(self.P) + 1 + self.idx], self.new_symbol)
+                tags2[i - len(self.P) + 1 + self.idx] = trans_symbol
                 # If pattern P is found we forget the acc idx q since we consider just non-overlapping matches
                 q = -1
                 if tags[i - len(self.P) + 1 + self.idx] == true_tags[i - len(self.P) + 1 + self.idx]:
                     score -= 1
-                if self.new_symbol == true_tags[i - len(self.P) + 1 + self.idx]:
+                if trans_symbol == true_tags[i - len(self.P) + 1 + self.idx]:
                     score += 1
 
         return score, tags2
