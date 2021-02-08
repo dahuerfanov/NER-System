@@ -15,11 +15,7 @@ class LexicalTagger():
         self.trie_canon_form.add_word(canonical_form(word), tag)
 
     def predict(self, word):
-        tag = self.trie.get_tag(word.lower())
-        if tag < 0:
-            tag = self.trie.get_tag(word.lower(), self.min_prefix)
-        if tag < 0:
-            tag = self.trie_canon_form.get_tag(canonical_form(word))
+        tag = self.trie.get_tag(word.lower(), self.min_prefix)
         if tag < 0:
             tag = self.trie_canon_form.get_tag(canonical_form(word), self.min_prefix)
         if tag < 0:

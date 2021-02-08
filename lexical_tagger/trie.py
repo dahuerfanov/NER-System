@@ -25,15 +25,16 @@ class Trie:
         if min_prefix <= 0:
             min_prefix = len(w)
         node = self.root
+        farthest_tag = -1
         for i in range(len(w)):
             if w[i] in node.children:
                 node = node.children[w[i]]
             else:
-                return -1
+                return farthest_tag
             if i >= min_prefix - 1:
                 if node.isfinal:
-                    return node.maxidx
-        return -1
+                    farthest_tag = node.maxidx
+        return farthest_tag
 
 
 class TrieNode:
